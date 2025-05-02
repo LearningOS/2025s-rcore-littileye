@@ -45,6 +45,8 @@ pub struct TaskManagerInner {
     tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
     current_task: usize,
+    /// 系统调用统计：tasks[i] 的调用次数记录在 syscall_count[i][...]
+    syscall_count: [[usize; 512]; MAX_APP_NUM],
 }
 
 lazy_static! {
@@ -65,10 +67,23 @@ lazy_static! {
                 UPSafeCell::new(TaskManagerInner {
                     tasks,
                     current_task: 0,
+                    syscall_count: [[0; 512]; MAX_APP_NUM], // 全0初始化
                 })
             },
         }
     };
+}
+
+impl TaskManagerInner {
+    /// 递增指定任务的系统调用计数
+    pub fn inc_syscall_count(&mut self, task_id: usize, syscall_id: usize) {
+        self.syscall_count[task_id][syscall_id] += 1;
+    }
+
+    /// 获取指定任务的系统调用次数
+    pub fn get_syscall_count(&self, task_id: usize, syscall_id: usize) -> usize {
+        self.syscall_count[task_id][syscall_id]
+    }
 }
 
 impl TaskManager {
@@ -135,6 +150,22 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// 提供安全的当前任务ID访问
+    pub fn current_task_id(&self) -> usize {
+        self.inner.exclusive_access().current_task
+    }
+
+    /// 提供安全的系统调用统计接口
+    pub fn inc_syscall_count(&self, task_id: usize, syscall_id: usize) {
+        self.inner.exclusive_access().inc_syscall_count(task_id, syscall_id);
+    }
+    
+    /// 提供安全的统计查询接口
+    pub fn get_syscall_count(&self, task_id: usize, syscall_id: usize) -> usize {
+        self.inner.exclusive_access().get_syscall_count(task_id, syscall_id)
+    }
+    
 }
 
 /// Run the first task in task list.

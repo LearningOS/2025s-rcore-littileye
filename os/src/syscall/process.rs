@@ -3,6 +3,7 @@ use crate::{
     task::{exit_current_and_run_next, suspend_current_and_run_next},
     timer::get_time_us,
 };
+use crate::task::TASK_MANAGER;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -40,6 +41,26 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 // TODO: implement the syscall
 pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
-    trace!("kernel: sys_trace");
-    -1
+    // trace!("kernel: sys_trace");
+    // -1
+    let task_id = TASK_MANAGER.current_task_id();
+    match _trace_request {
+        0 => {
+            // 读取用户内存
+            let ptr = _id as *const u8;
+            unsafe { ptr.read_volatile() as isize }
+        }
+        1 => {
+            // 写入用户内存
+            let ptr = _id as *mut u8;
+            unsafe { ptr.write_volatile(_data as u8) };
+            0
+        }
+        2 => {
+            // 返回指定系统调用的次数
+            TASK_MANAGER.get_syscall_count(task_id, _id) as isize
+        }
+        _ => -1,
+    }
+
 }
